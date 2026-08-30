@@ -1,4 +1,4 @@
-// Calls router — multi-tenant aware.
+// Calls router — multi-tenant aware + FastAPI-bridged.
 //
 // Every call is scoped to a tenant (via ctx.tenant.id). The user may belong
 // to multiple tenants in the future; for now, the user's default tenant is
@@ -6,6 +6,12 @@
 //
 // DNC enforcement happens at the API layer (not the prompt layer). This is
 // the enterprise-grade answer to "we have a Do-Not-Call list."
+//
+// Call placement goes through the FastAPI backend (the Python service
+// running on Render). The admin doesn't talk to Twilio directly. This
+// centralizes the Twilio creds in FastAPI and makes the admin a control
+// panel. The FastAPI service creates the call record; the admin mirrors
+// a reference to it in admin_calls for the dashboard.
 
 import { z } from "zod";
 import { eq, and, desc, sql } from "drizzle-orm";
@@ -13,8 +19,8 @@ import { TRPCError } from "@trpc/server";
 import { createRouter, authedQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { agentConfigs, calls, contacts, transcripts, auditLog } from "@db/schema";
-import { getCredentialsForTenant, requireTwilio } from "./credentialsRouter";
-import { twilioCreateCall } from "./services/twilio";
+import { getCredentialsForTenant } from "./credentialsRouter";
+import { callFastApi, callFastApiJson } from "./lib/fastapi";
 
 const E164 = /^\+[1-9]\d{7,14}$/;
 
@@ -81,6 +87,7 @@ export const callsRouter = createRouter({
         to: z.string().regex(E164, "Phone must be E.164, e.g. +15551234567"),
         leadName: z.string().max(120).optional(),
         leadContext: z.string().max(2000).optional(),
+        leadEmail: z.string().email().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -113,50 +120,89 @@ export const callsRouter = createRouter({
         throw new TRPCError({ code: "BAD_REQUEST", message: "This agent is not active." });
       }
 
-      const twilio = requireTwilio(await getCredentialsForTenant(tenantId));
-      const base = baseUrl();
+      // ── Bridge to FastAPI backend ─────────────────────────────────
+      // The FastAPI service is the source of truth for call placement.
+      // It owns the Twilio creds and the WebSocket gateway.
+      const cred = await getCredentialsForTenant(tenantId);
+      if (!cred?.fastApiUrl || !cred?.fastApiAdminKey) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message:
+            "FastAPI backend is not configured for this tenant. Add FastAPI URL + admin key in Settings.",
+        });
+      }
 
-      const result = await twilioCreateCall(twilio, {
-        to: input.to,
-        twimlUrl: `${base}/api/webhooks/twilio/voice/${agentConfig.id}${input.leadName ? `?lead_name=${encodeURIComponent(input.leadName)}` : ""}`,
-        statusCallbackUrl: `${base}/api/webhooks/twilio/status`,
+      // Map the agent_config's vertical to a FastAPI "purpose" enum.
+      // FastAPI accepts: sales, lead_qualification, sales_close, appointment
+      // The admin has more verticals, so we default to "sales" for outbound
+      // and the agent's name carries the rest of the context.
+      const purpose =
+        agentConfig.vertical?.category === "appointment_reminder"
+          ? "appointment"
+          : agentConfig.vertical?.category === "b2b_saas"
+            ? "lead_qualification"
+            : "sales";
+
+      const fastApiRes = await callFastApiJson<{
+        call_sid: string;
+        status: string;
+        to: string;
+        from: string;
+        call_id?: string;
+      }>({ url: cred.fastApiUrl, adminKey: cred.fastApiAdminKey }, "/call", {
+        method: "POST",
+        body: JSON.stringify({
+          to: input.to,
+          purpose,
+          lead_name: input.leadName,
+          lead_context: input.leadContext,
+        }),
       });
 
-      // Determine phi_classification from agent's compliance_tier
+      // ── Mirror the call in admin_calls for the dashboard ─────────
+      // FastAPI already created the call in its own (legacy `calls`)
+      // table. We mirror a reference here so the admin's call list
+      // can show "calls placed via this admin." The callSid is the join key.
       const phiClassification = agentConfig.complianceTier === "hipaa" ? "phi" : "pii";
-
       const inserted = await db
         .insert(calls)
         .values({
           tenantId,
           agentConfigId: agentConfig.id,
-          callSid: result.sid,
+          callSid: fastApiRes.call_sid,
           direction: "outbound",
           toNumber: input.to,
-          fromNumber: twilio.phoneNumber,
-          status: result.status || "queued",
+          fromNumber: fastApiRes.from ?? "",
+          status: (fastApiRes.status ?? "queued") as any,
           leadName: input.leadName,
           leadContext: input.leadContext,
           phiClassification,
         })
+        .onConflictDoNothing({ target: calls.callSid })
         .returning({ id: calls.id });
 
-      // Audit the call placement
       await db.insert(auditLog).values({
         tenantId,
         actorUserId: ctx.user?.id,
         action: "create",
         resourceType: "call",
-        resourceId: String(inserted[0].id),
+        resourceId: fastApiRes.call_sid,
         details: {
           to: input.to,
           leadName: input.leadName,
           agentConfigId: agentConfig.id,
           vertical: agentConfig.vertical?.category,
+          bridgedVia: "fastapi",
+          fastApiCallId: fastApiRes.call_id,
         },
       });
 
-      return { callId: inserted[0].id, callSid: result.sid, status: result.status };
+      return {
+        callId: inserted[0]?.id ?? 0,
+        callSid: fastApiRes.call_sid,
+        status: fastApiRes.status,
+        from: fastApiRes.from,
+      };
     }),
 
   stats: authedQuery.query(async ({ ctx }) => {

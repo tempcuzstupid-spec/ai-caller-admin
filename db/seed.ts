@@ -4,8 +4,8 @@
 // Idempotent: re-running is safe (uses ON CONFLICT DO NOTHING).
 
 import { getDb, closeDb } from "../api/queries/connection";
-import { tenants, verticals } from "./schema";
-import { eq } from "drizzle-orm";
+import { tenants, verticals, credentials, users } from "./schema";
+import { eq, and } from "drizzle-orm";
 import { STARTER_VERTICAL_IDS, AGENT_CATEGORIES } from "../contracts/catalog";
 
 // Helper: find the matching AGENT_CATEGORIES entry for a category id.
@@ -99,6 +99,37 @@ async function seed() {
         console.log(`+ Created tenant-specific peptides vertical for ${tenantName}`);
       }
     }
+  }
+
+  // 3) Default credentials for Premium Meridian (the canonical live tenant)
+  //    - Twilio creds: the Premium Meridian account
+  //    - FastAPI bridge: the AI Caller backend on Render
+  //    - These can be overridden in the dashboard's Settings page
+  const existingCreds = await db.query.credentials.findFirst({
+    where: eq(credentials.tenantId, tenantId),
+  });
+  if (!existingCreds) {
+    const twilioSid = process.env.PREMIUM_MERIDIAN_TWILIO_SID;
+    const twilioAuth = process.env.PREMIUM_MERIDIAN_TWILIO_AUTH;
+    const twilioPhone = process.env.PREMIUM_MERIDIAN_TWILIO_PHONE;
+    const fastApiUrl = process.env.PREMIUM_MERIDIAN_FASTAPI_URL;
+    const fastApiKey = process.env.PREMIUM_MERIDIAN_FASTAPI_KEY;
+
+    await db.insert(credentials).values({
+      tenantId,
+      twilioAccountSid: twilioSid ?? null,
+      twilioAuthToken: twilioAuth ?? null,
+      twilioPhoneNumber: twilioPhone ?? null,
+      fastApiUrl: fastApiUrl ?? "https://ai-caller-api-82u7.onrender.com",
+      fastApiAdminKey: fastApiKey ?? null,
+    });
+    if (fastApiUrl) {
+      console.log(`+ Created credentials for ${tenantName} (FastAPI bridge: ${fastApiUrl})`);
+    } else {
+      console.log(`+ Created empty credentials for ${tenantName} (set PREMIUM_MERIDIAN_FASTAPI_KEY env to wire the bridge)`);
+    }
+  } else {
+    console.log(`✓ Credentials exist for ${tenantName}`);
   }
 
   console.log("Seed complete.");
