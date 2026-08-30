@@ -67,7 +67,7 @@ export const auditActionEnum = pgEnum("audit_action", [
 // ── Tenants ────────────────────────────────────────────────────────────
 // One row per customer. The whole product pivots around tenant_id.
 
-export const tenants = pgTable("tenants", {
+export const tenants = pgTable("admin_tenants", {
   id: serial("id").primaryKey(),
   name: varchar("name", { length: 255 }).notNull(),
   slug: varchar("slug", { length: 64 }).notNull().unique(),
@@ -97,7 +97,7 @@ export type Tenant = typeof tenants.$inferSelect;
 // For now, the schema supports multi-tenant membership; the UI surface for it
 // is post-launch.
 
-export const users = pgTable("users", {
+export const users = pgTable("admin_users", {
   id: serial("id").primaryKey(),
   unionId: varchar("union_id", { length: 255 }).notNull().unique(),
   defaultTenantId: bigint("default_tenant_id", { mode: "number" }).references(() => tenants.id, { onDelete: "set null" }),
@@ -114,7 +114,7 @@ export type User = typeof users.$inferSelect;
 
 // ── Tenant membership ──────────────────────────────────────────────────
 
-export const tenantMembers = pgTable("tenant_members", {
+export const tenantMembers = pgTable("admin_tenant_members", {
   id: serial("id").primaryKey(),
   tenantId: bigint("tenant_id", { mode: "number" }).notNull().references(() => tenants.id, { onDelete: "cascade" }),
   userId: bigint("user_id", { mode: "number" }).notNull().references(() => users.id, { onDelete: "cascade" }),
@@ -131,7 +131,7 @@ export const tenantMembers = pgTable("tenant_members", {
 // flow live in the AGENT_CATEGORIES constant in contracts/catalog.ts (compiled
 // into the bundle). This table stores the per-tenant instantiation + metadata.
 
-export const verticals = pgTable("verticals", {
+export const verticals = pgTable("admin_verticals", {
   id: serial("id").primaryKey(),
   // For starter verticals, ownerTenantId is null and category is the canonical enum.
   // For tenant-built verticals, ownerTenantId is the tenant that owns it.
@@ -159,7 +159,7 @@ export type Vertical = typeof verticals.$inferSelect;
 
 // ── Credentials (per-tenant Twilio + SMTP + WS gateway) ────────────────
 
-export const credentials = pgTable("credentials", {
+export const credentials = pgTable("admin_credentials", {
   id: serial("id").primaryKey(),
   tenantId: bigint("tenant_id", { mode: "number" }).notNull().references(() => tenants.id, { onDelete: "cascade" }),
   twilioAccountSid: varchar("twilio_account_sid", { length: 128 }),
@@ -189,7 +189,7 @@ export type Credential = typeof credentials.$inferSelect;
 // The "agent" is the runtime instance a tenant deploys. It's a join between
 // a tenant and a vertical, with overrides.
 
-export const agentConfigs = pgTable("agent_configs", {
+export const agentConfigs = pgTable("admin_agent_configs", {
   id: serial("id").primaryKey(),
   tenantId: bigint("tenant_id", { mode: "number" }).notNull().references(() => tenants.id, { onDelete: "cascade" }),
   verticalId: bigint("vertical_id", { mode: "number" }).notNull().references(() => verticals.id, { onDelete: "cascade" }),
@@ -233,7 +233,7 @@ export type AgentConfig = typeof agentConfigs.$inferSelect;
 
 // ── Calls ──────────────────────────────────────────────────────────────
 
-export const calls = pgTable("calls", {
+export const calls = pgTable("admin_calls", {
   id: serial("id").primaryKey(),
   tenantId: bigint("tenant_id", { mode: "number" }).notNull().references(() => tenants.id, { onDelete: "cascade" }),
   agentConfigId: bigint("agent_config_id", { mode: "number" }).references(() => agentConfigs.id, { onDelete: "set null" }),
@@ -265,7 +265,7 @@ export type Call = typeof calls.$inferSelect;
 
 // ── Transcript lines ───────────────────────────────────────────────────
 
-export const transcripts = pgTable("transcripts", {
+export const transcripts = pgTable("admin_transcripts", {
   id: serial("id").primaryKey(),
   tenantId: bigint("tenant_id", { mode: "number" }).notNull().references(() => tenants.id, { onDelete: "cascade" }),
   callId: bigint("call_id", { mode: "number" }).notNull().references(() => calls.id, { onDelete: "cascade" }),
@@ -283,7 +283,7 @@ export type Transcript = typeof transcripts.$inferSelect;
 
 // ── Contacts + DNC ─────────────────────────────────────────────────────
 
-export const contacts = pgTable("contacts", {
+export const contacts = pgTable("admin_contacts", {
   id: serial("id").primaryKey(),
   tenantId: bigint("tenant_id", { mode: "number" }).notNull().references(() => tenants.id, { onDelete: "cascade" }),
   name: varchar("name", { length: 120 }).notNull(),
@@ -301,7 +301,7 @@ export type Contact = typeof contacts.$inferSelect;
 
 // ── Outbound messages (WhatsApp / email / SMS) ─────────────────────────
 
-export const messages = pgTable("messages", {
+export const messages = pgTable("admin_messages", {
   id: serial("id").primaryKey(),
   tenantId: bigint("tenant_id", { mode: "number" }).notNull().references(() => tenants.id, { onDelete: "cascade" }),
   callId: bigint("call_id", { mode: "number" }).references(() => calls.id, { onDelete: "set null" }),
@@ -325,7 +325,7 @@ export type Message = typeof messages.$inferSelect;
 // For basic compliance_tier tenants, we only log admin actions.
 // For hipaa compliance_tier tenants, we also log every PHI read.
 
-export const auditLog = pgTable("audit_log", {
+export const auditLog = pgTable("admin_audit_log", {
   id: serial("id").primaryKey(),
   tenantId: bigint("tenant_id", { mode: "number" }).references(() => tenants.id, { onDelete: "cascade" }),
   actorUserId: bigint("actor_user_id", { mode: "number" }).references(() => users.id, { onDelete: "set null" }),
