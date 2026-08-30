@@ -133,15 +133,33 @@ export const callsRouter = createRouter({
       }
 
       // Map the agent_config's vertical to a FastAPI "purpose" enum.
-      // FastAPI accepts: sales, lead_qualification, sales_close, appointment
-      // The admin has more verticals, so we default to "sales" for outbound
-      // and the agent's name carries the rest of the context.
-      const purpose =
-        agentConfig.vertical?.category === "appointment_reminder"
-          ? "appointment"
-          : agentConfig.vertical?.category === "b2b_saas"
-            ? "lead_qualification"
-            : "sales";
+      // FastAPI accepts: general, sales_demo, support, reminder,
+      //   personal_assistant, lead_qualification, sales_close, appointment
+      // The admin has more verticals than FastAPI's purpose enum, so we
+      // collapse them. The agent's name + system prompt carry the rest.
+      const verticalCategory = agentConfig.vertical?.category;
+      let purpose:
+        | "general"
+        | "sales_demo"
+        | "support"
+        | "reminder"
+        | "personal_assistant"
+        | "lead_qualification"
+        | "sales_close"
+        | "appointment";
+      if (verticalCategory === "appointment_reminder") {
+        purpose = "appointment";
+      } else if (verticalCategory === "b2b_saas") {
+        purpose = "lead_qualification";
+      } else if (verticalCategory === "personal_assistant") {
+        purpose = "personal_assistant";
+      } else if (verticalCategory === "legal_intake") {
+        purpose = "lead_qualification";
+      } else {
+        // peptides_wellness, dental_practice, real_estate, home_services,
+        // hospitality, custom, inbound_support (shouldn't reach here)
+        purpose = "sales_demo";
+      }
 
       const fastApiRes = await callFastApiJson<{
         call_sid: string;
