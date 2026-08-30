@@ -105,8 +105,8 @@ export function createOAuthCallbackHandler() {
         unionId: userId,
         name: userProfile.name,
         avatar: userProfile.avatar_url,
-        lastSignInAt: new Date(),
       });
+      // lastSignInAt is updated via the upsertUser default value (now()).
 
       const token = await signSessionToken({
         unionId: userId,

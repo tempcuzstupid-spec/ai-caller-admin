@@ -8,13 +8,13 @@
 // instances.
 
 import { z } from "zod";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, or, isNull } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { createRouter, authedQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { agentConfigs, verticals } from "@db/schema";
 import { AGENT_CATEGORIES, STARTER_VERTICAL_IDS } from "@contracts/catalog";
-import { auditLog, tenants } from "@db/schema";
+import { auditLog } from "@db/schema";
 
 const agentConfigInput = z.object({
   verticalId: z.number().int().positive(),
@@ -68,8 +68,7 @@ export const agentsRouter = createRouter({
     // Return both platform-level verticals (owner_tenant_id = NULL) and
     // tenant-specific clones.
     return getDb().query.verticals.findMany({
-      where: (v, { eq, or, isNull, and }) =>
-        or(isNull(v.ownerTenantId), eq(v.ownerTenantId, tenantId)),
+      where: or(isNull(verticals.ownerTenantId), eq(verticals.ownerTenantId, tenantId)),
       orderBy: [desc(verticals.updatedAt)],
     });
   }),
@@ -117,6 +116,7 @@ export const agentsRouter = createRouter({
         .insert(agentConfigs)
         .values({
           ...input,
+          fromNumbers: input.fromNumbers ?? "",
           tenantId,
         })
         .returning({ id: agentConfigs.id });
@@ -142,7 +142,11 @@ export const agentsRouter = createRouter({
 
       const res = await db
         .update(agentConfigs)
-        .set(data)
+        .set({
+          ...data,
+          // Coerce null → "" for fromNumbers (the column is NOT NULL)
+          fromNumbers: data.fromNumbers === null || data.fromNumbers === undefined ? "" : data.fromNumbers,
+        })
         .where(and(eq(agentConfigs.id, id), eq(agentConfigs.tenantId, tenantId)))
         .returning({ id: agentConfigs.id });
 

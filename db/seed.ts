@@ -6,7 +6,12 @@
 import { getDb, closeDb } from "../api/queries/connection";
 import { tenants, verticals } from "./schema";
 import { eq } from "drizzle-orm";
-import { STARTER_VERTICAL_IDS } from "../contracts/catalog";
+import { STARTER_VERTICAL_IDS, AGENT_CATEGORIES } from "../contracts/catalog";
+
+// Helper: find the matching AGENT_CATEGORIES entry for a category id.
+function getCategoryConfig(id: string) {
+  return AGENT_CATEGORIES.find((c) => c.id === id);
+}
 
 async function seed() {
   const db = getDb();
@@ -58,16 +63,19 @@ async function seed() {
         and(eq(v.category, category), isNull(v.ownerTenantId)),
     });
     if (!platformExisting) {
+      const cfg = getCategoryConfig(category);
       await db.insert(verticals).values({
         ownerTenantId: null,
         category,
-        name: category.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
-        description: `Starter vertical: ${category}`,
+        name: cfg?.label ?? category.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+        description: cfg?.description ?? `Starter vertical: ${category}`,
+        direction: (cfg?.direction ?? "both") as "inbound" | "outbound" | "both",
         visibility: "public",
         defaultComplianceTier:
-          category === "peptides_wellness" || category === "dental_practice"
-            ? "hipaa"
-            : "basic",
+          (cfg?.defaultComplianceTier ??
+            (category === "peptides_wellness" || category === "dental_practice" ? "hipaa" : "basic")) as
+            | "basic"
+            | "hipaa",
       });
       console.log(`+ Created platform vertical: ${category}`);
     }

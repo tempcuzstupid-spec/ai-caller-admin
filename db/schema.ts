@@ -71,7 +71,7 @@ export const tenants = pgTable("tenants", {
   id: serial("id").primaryKey(),
   name: varchar("name", { length: 255 }).notNull(),
   slug: varchar("slug", { length: 64 }).notNull().unique(),
-  ownerUserId: bigint("owner_user_id", { mode: "number", unsigned: true }),
+  ownerUserId: bigint("owner_user_id", { mode: "number" }),
   // Brand
   brandName: varchar("brand_name", { length: 255 }).notNull(),
   brandDomain: varchar("brand_domain", { length: 255 }),
@@ -100,7 +100,7 @@ export type Tenant = typeof tenants.$inferSelect;
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   unionId: varchar("union_id", { length: 255 }).notNull().unique(),
-  defaultTenantId: bigint("default_tenant_id", { mode: "number", unsigned: true }).references(() => tenants.id, { onDelete: "set null" }),
+  defaultTenantId: bigint("default_tenant_id", { mode: "number" }).references(() => tenants.id, { onDelete: "set null" }),
   name: varchar("name", { length: 255 }),
   email: varchar("email", { length: 320 }),
   avatar: text("avatar"),
@@ -116,8 +116,8 @@ export type User = typeof users.$inferSelect;
 
 export const tenantMembers = pgTable("tenant_members", {
   id: serial("id").primaryKey(),
-  tenantId: bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "cascade" }),
-  userId: bigint("user_id", { mode: "number", unsigned: true }).notNull().references(() => users.id, { onDelete: "cascade" }),
+  tenantId: bigint("tenant_id", { mode: "number" }).notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  userId: bigint("user_id", { mode: "number" }).notNull().references(() => users.id, { onDelete: "cascade" }),
   role: userRoleEnum("role").default("user").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (t) => [uniqueIndex("tenant_members_unique").on(t.tenantId, t.userId)]);
@@ -135,10 +135,14 @@ export const verticals = pgTable("verticals", {
   id: serial("id").primaryKey(),
   // For starter verticals, ownerTenantId is null and category is the canonical enum.
   // For tenant-built verticals, ownerTenantId is the tenant that owns it.
-  ownerTenantId: bigint("owner_tenant_id", { mode: "number", unsigned: true }).references(() => tenants.id, { onDelete: "cascade" }),
+  ownerTenantId: bigint("owner_tenant_id", { mode: "number" }).references(() => tenants.id, { onDelete: "cascade" }),
   category: verticalCategoryEnum("category").notNull(),
   name: varchar("name", { length: 120 }).notNull(),
   description: text("description"),
+  // Direction: which way this vertical handles calls. A peptide sales vertical
+  // would be "outbound"; a dental recare vertical "outbound"; a reservations
+  // vertical "inbound". Custom verticals default to "both".
+  direction: directionEnum("direction").default("both").notNull(),
   // "private" = only owner can see, "tenant" = visible to all members of a specific tenant,
   // "public" = platform marketplace, cloneable by anyone.
   visibility: varchar("visibility", { length: 16 }).default("private").notNull(),
@@ -157,7 +161,7 @@ export type Vertical = typeof verticals.$inferSelect;
 
 export const credentials = pgTable("credentials", {
   id: serial("id").primaryKey(),
-  tenantId: bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  tenantId: bigint("tenant_id", { mode: "number" }).notNull().references(() => tenants.id, { onDelete: "cascade" }),
   twilioAccountSid: varchar("twilio_account_sid", { length: 128 }),
   twilioAuthToken: varchar("twilio_auth_token", { length: 128 }),
   twilioPhoneNumber: varchar("twilio_phone_number", { length: 32 }),
@@ -187,8 +191,8 @@ export type Credential = typeof credentials.$inferSelect;
 
 export const agentConfigs = pgTable("agent_configs", {
   id: serial("id").primaryKey(),
-  tenantId: bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "cascade" }),
-  verticalId: bigint("vertical_id", { mode: "number", unsigned: true }).notNull().references(() => verticals.id, { onDelete: "cascade" }),
+  tenantId: bigint("tenant_id", { mode: "number" }).notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  verticalId: bigint("vertical_id", { mode: "number" }).notNull().references(() => verticals.id, { onDelete: "cascade" }),
   // The user-given name (e.g. "Marcus — Peptide Sales", "Aria — Dental Recare")
   name: varchar("name", { length: 120 }).notNull(),
   // Overrides (null = use vertical defaults)
@@ -231,8 +235,8 @@ export type AgentConfig = typeof agentConfigs.$inferSelect;
 
 export const calls = pgTable("calls", {
   id: serial("id").primaryKey(),
-  tenantId: bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "cascade" }),
-  agentConfigId: bigint("agent_config_id", { mode: "number", unsigned: true }).references(() => agentConfigs.id, { onDelete: "set null" }),
+  tenantId: bigint("tenant_id", { mode: "number" }).notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  agentConfigId: bigint("agent_config_id", { mode: "number" }).references(() => agentConfigs.id, { onDelete: "set null" }),
   // Twilio's call SID (for status callbacks, recording lookups)
   callSid: varchar("call_sid", { length: 64 }).notNull().unique(),
   direction: callDirectionEnum("direction").notNull(),
@@ -263,8 +267,8 @@ export type Call = typeof calls.$inferSelect;
 
 export const transcripts = pgTable("transcripts", {
   id: serial("id").primaryKey(),
-  tenantId: bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "cascade" }),
-  callId: bigint("call_id", { mode: "number", unsigned: true }).notNull().references(() => calls.id, { onDelete: "cascade" }),
+  tenantId: bigint("tenant_id", { mode: "number" }).notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  callId: bigint("call_id", { mode: "number" }).notNull().references(() => calls.id, { onDelete: "cascade" }),
   role: varchar("role", { length: 16 }).notNull(), // "user" | "assistant" | "tool"
   content: text("content").notNull(),
   // Tool call data, if any
@@ -281,7 +285,7 @@ export type Transcript = typeof transcripts.$inferSelect;
 
 export const contacts = pgTable("contacts", {
   id: serial("id").primaryKey(),
-  tenantId: bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  tenantId: bigint("tenant_id", { mode: "number" }).notNull().references(() => tenants.id, { onDelete: "cascade" }),
   name: varchar("name", { length: 120 }).notNull(),
   phone: varchar("phone", { length: 32 }).notNull(),
   email: varchar("email", { length: 320 }),
@@ -299,8 +303,8 @@ export type Contact = typeof contacts.$inferSelect;
 
 export const messages = pgTable("messages", {
   id: serial("id").primaryKey(),
-  tenantId: bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "cascade" }),
-  callId: bigint("call_id", { mode: "number", unsigned: true }).references(() => calls.id, { onDelete: "set null" }),
+  tenantId: bigint("tenant_id", { mode: "number" }).notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  callId: bigint("call_id", { mode: "number" }).references(() => calls.id, { onDelete: "set null" }),
   channel: messageChannelEnum("channel").notNull(),
   toAddr: varchar("to_addr", { length: 320 }).notNull(),
   subject: varchar("subject", { length: 255 }),
@@ -323,8 +327,8 @@ export type Message = typeof messages.$inferSelect;
 
 export const auditLog = pgTable("audit_log", {
   id: serial("id").primaryKey(),
-  tenantId: bigint("tenant_id", { mode: "number", unsigned: true }).references(() => tenants.id, { onDelete: "cascade" }),
-  actorUserId: bigint("actor_user_id", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "set null" }),
+  tenantId: bigint("tenant_id", { mode: "number" }).references(() => tenants.id, { onDelete: "cascade" }),
+  actorUserId: bigint("actor_user_id", { mode: "number" }).references(() => users.id, { onDelete: "set null" }),
   // "system" for background jobs (e.g., webhook handlers), "user" for interactive
   actorType: varchar("actor_type", { length: 32 }).default("user").notNull(),
   action: auditActionEnum("action").notNull(),

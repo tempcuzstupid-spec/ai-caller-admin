@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import * as schema from "@db/schema";
-import type { InsertUser } from "@db/schema";
+
 import { getDb } from "./connection";
 import { env } from "../lib/env";
 
@@ -13,24 +13,33 @@ export async function findUserByUnionId(unionId: string) {
   return rows.at(0);
 }
 
-export async function upsertUser(data: InsertUser) {
+// Upsert a user keyed on unionId. The Postgres way is ON CONFLICT (union_id)
+// DO UPDATE — not onDuplicateKeyUpdate (which is MySQL/Drizzle-MySQL only).
+export async function upsertUser(data: {
+  unionId: string;
+  name?: string | null;
+  email?: string | null;
+  avatar?: string | null;
+}) {
   const values = { ...data };
-  const updateSet: Partial<InsertUser> = {
+  const updateSet = {
     lastSignInAt: new Date(),
-    ...data,
+    name: data.name ?? null,
+    email: data.email ?? null,
+    avatar: data.avatar ?? null,
   };
 
-  if (
-    values.role === undefined &&
-    values.unionId &&
-    values.unionId === env.ownerUnionId
-  ) {
-    values.role = "admin";
-    updateSet.role = "admin";
+  // Owner gets admin role on first login
+  if (values.unionId && values.unionId === env.ownerUnionId) {
+    (values as any).role = "admin";
+    (updateSet as any).role = "admin";
   }
 
   await getDb()
     .insert(schema.users)
-    .values(values)
-    .onDuplicateKeyUpdate({ set: updateSet });
+    .values(values as any)
+    .onConflictDoUpdate({
+      target: schema.users.unionId,
+      set: updateSet,
+    });
 }
