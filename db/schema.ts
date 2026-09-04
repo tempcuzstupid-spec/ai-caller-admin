@@ -61,7 +61,7 @@ export const messageStatusEnum = pgEnum("message_status", [
   "queued", "sent", "delivered", "read", "failed", "opted_out",
 ]);
 export const auditActionEnum = pgEnum("audit_action", [
-  "create", "read", "update", "delete", "login", "logout", "export", "phi_access", "config_change",
+  "create", "read", "update", "delete", "login", "logout", "export", "phi_access", "config_change", "preview",
 ]);
 
 // ── Tenants ────────────────────────────────────────────────────────────

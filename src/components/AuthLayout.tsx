@@ -1,5 +1,6 @@
 import { useAuth } from "@/hooks/useAuth";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { TenantSwitcher } from "./TenantSwitcher";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -184,7 +185,8 @@ function AuthLayoutContent({
             </div>
           </SidebarHeader>
 
-          <SidebarContent className="gap-0">
+          {!isCollapsed ? <TenantSwitcher /> : null}
+            <SidebarContent className="gap-0">
             <SidebarMenu className="px-2 py-1">
               {menuItems.map(item => {
                 const isActive = location.pathname === item.path;

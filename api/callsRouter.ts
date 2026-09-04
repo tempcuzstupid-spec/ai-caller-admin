@@ -20,7 +20,7 @@ import { createRouter, authedQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { agentConfigs, calls, contacts, transcripts, auditLog } from "@db/schema";
 import { getCredentialsForTenant } from "./credentialsRouter";
-import { callFastApi, callFastApiJson } from "./lib/fastapi";
+import { callFastApiJson } from "./lib/fastapi";
 
 const E164 = /^\+[1-9]\d{7,14}$/;
 

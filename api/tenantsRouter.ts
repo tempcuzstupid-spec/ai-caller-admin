@@ -2,9 +2,12 @@
 // In the MVP, this is read-only (the seed creates tenant 1 and we don't
 // allow self-serve onboarding yet). Future: invite a team member, transfer
 // ownership, change compliance tier, etc.
+//
+// `listForPreview` is owner-only: returns the full list of tenants so the
+// owner can pick one to preview via the sidebar tenant switcher.
 
 import { z } from "zod";
-import { eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { createRouter, authedQuery } from "./middleware";
 import { getDb } from "./queries/connection";
@@ -15,6 +18,15 @@ function requireTenantId(ctx: any): number {
     throw new TRPCError({ code: "FORBIDDEN", message: "No tenant context" });
   }
   return ctx.tenant.id;
+}
+
+function requireOwner(ctx: any): void {
+  if (ctx.user?.role !== "owner") {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "This action is for platform owners only.",
+    });
+  }
 }
 
 export const tenantsRouter = createRouter({
@@ -88,4 +100,45 @@ export const tenantsRouter = createRouter({
         limit: input.limit,
       });
     }),
+
+  // List all tenants (owner-only). Used by the tenant switcher to populate
+  // the dropdown of preview targets.
+  listForPreview: authedQuery.query(async ({ ctx }) => {
+    requireOwner(ctx);
+    const rows = await getDb().query.tenants.findMany({
+      orderBy: [asc(tenants.name)],
+    });
+    return rows.map((t) => ({
+      id: t.id,
+      name: t.name,
+      slug: t.slug,
+      brandName: t.brandName,
+      complianceTier: t.complianceTier,
+    }));
+  }),
+
+  // Return the current "viewing as" state. The frontend reads this to
+  // render the "Previewing as <name>" banner + the Exit Preview button.
+  viewingAs: authedQuery.query(async ({ ctx }) => {
+    if (!ctx.user) {
+      return { ownerEmail: null, isOwner: false, isPreviewing: false, target: null };
+    }
+    const isOwner = ctx.user.role === "owner";
+    const isPreviewing = !!ctx.previewTenantId;
+    let target: { id: number; name: string; brandName: string } | null = null;
+    if (isPreviewing && ctx.tenant) {
+      target = {
+        id: ctx.tenant.id,
+        name: ctx.tenant.name,
+        brandName: ctx.tenant.brandName,
+      };
+    }
+    return {
+      ownerEmail: isOwner ? ctx.user.email : null,
+      isOwner,
+      isPreviewing,
+      target,
+      ownTenantId: ctx.user.defaultTenantId,
+    };
+  }),
 });
