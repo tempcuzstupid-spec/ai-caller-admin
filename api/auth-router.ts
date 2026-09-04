@@ -99,6 +99,13 @@ export const authRouter = createRouter({
             name: input.name,
             email: input.email,
             defaultTenantId: tenant.id,
+            // Re-evaluate role on every dev login so that setting OWNER_EMAIL
+            // after the user was first created promotes them to owner. (We
+            // don't want to demote a real owner if OWNER_EMAIL is unset —
+            // only promote when the email matches the configured owner.)
+            ...(process.env.OWNER_EMAIL && input.email === process.env.OWNER_EMAIL
+              ? { role: "owner" as const }
+              : {}),
             lastSignInAt: new Date(),
           },
         })
