@@ -15,6 +15,13 @@
       "when": 1788551657813,
       "tag": "0001_dear_supreme_intelligence",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788552815727,
+      "tag": "0002_uneven_tenebrous",
+      "breakpoints": true
     }
   ]
 }

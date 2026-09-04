@@ -54,7 +54,7 @@ export const verticalCategoryEnum = pgEnum("vertical_category", [
 export const directionEnum = pgEnum("direction", ["inbound", "outbound", "both"]);
 export const callDirectionEnum = pgEnum("call_direction", ["inbound", "outbound"]);
 export const callStatusEnum = pgEnum("call_status", [
-  "queued", "initiated", "ringing", "in_progress", "completed", "failed", "no_answer", "busy", "voicemail",
+  "queued", "initiated", "ringing", "answered", "in_progress", "completed", "failed", "no_answer", "busy", "voicemail",
 ]);
 export const messageChannelEnum = pgEnum("message_channel", ["whatsapp", "email", "sms"]);
 export const messageStatusEnum = pgEnum("message_status", [

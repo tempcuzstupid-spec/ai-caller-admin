@@ -229,7 +229,7 @@ export const callsRouter = createRouter({
     const [totals] = await db
       .select({
         totalCalls: sql<number>`COUNT(*)`,
-        activeCalls: sql<number>`SUM(CASE WHEN ${calls.status} IN ('initiated','queued','ringing','in_progress','answered') THEN 1 ELSE 0 END)`,
+        activeCalls: sql<number>`SUM(CASE WHEN ${calls.status} IN ('initiated','queued','ringing','answered','in_progress') THEN 1 ELSE 0 END)`,
         avgDuration: sql<number>`COALESCE(AVG(${calls.duration}), 0)`,
         totalCostCents: sql<number>`COALESCE(SUM(${calls.costTwilioCents} + ${calls.costDeepgramCents} + ${calls.costOpenaiCents} + ${calls.costElevenlabsCents}), 0)`,
       })
