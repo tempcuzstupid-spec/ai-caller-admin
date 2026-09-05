@@ -43,7 +43,7 @@ const providerSchema = z.enum([
 
 // The callback URL the user is redirected to. For mock, we just complete
 // the integration immediately and bounce them back to the assistant page.
-oauthCallbackRoutes.get("/integrations/callback", async (c) => {
+export const oauthCallbackHandler = async (c: any) => {
   const provider = providerSchema.safeParse(c.req.query("provider"));
   const state = c.req.query("state");
   const mock = c.req.query("mock");
@@ -61,8 +61,8 @@ oauthCallbackRoutes.get("/integrations/callback", async (c) => {
   const rawCookie = c.req.header("cookie") ?? "";
   const sessionCookie = rawCookie
     .split(";")
-    .map((p) => p.trim())
-    .find((p) => p.startsWith("vr_session="))
+    .map((p: string) => p.trim())
+    .find((p: string) => p.startsWith("vr_session="))
     ?.slice("vr_session=".length);
   if (!sessionCookie) {
     return c.redirect("/login?error=oauth_no_session");
@@ -146,4 +146,6 @@ oauthCallbackRoutes.get("/integrations/callback", async (c) => {
 
   // Bounce back to the assistant page
   return c.redirect("/assistant?connected=" + provider.data);
-});
+};
+
+oauthCallbackRoutes.get("/integrations/callback", oauthCallbackHandler);
