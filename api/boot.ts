@@ -42,6 +42,9 @@ app.get("/api/oauth-assistant/callback", (c) => {
   console.log("[OAuth] alt callback hit, provider=", c.req.query("provider"));
   return oauthCallbackHandler(c);
 });
+
+// Test: simple handler at /api/oauth-test
+app.get("/api/oauth-test", (c) => c.text("oauth-test works"));
 app.all("/api/*", (c) => c.json({ error: "Not Found" }, 404));
 
 export default app;
