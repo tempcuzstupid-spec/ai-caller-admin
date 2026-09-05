@@ -21,14 +21,15 @@ app.get("/api/test/version", (c) => c.json({
 }));
 app.get(Paths.oauthCallback, createOAuthCallbackHandler());
 app.route("/api/webhooks", webhooks);
-app.use("/api/trpc/*", async (c) => {
-  return fetchRequestHandler({
-    endpoint: "/api/trpc",
-    req: c.req.raw,
-    router: appRouter,
-    createContext,
-  });
-});
+// tRPC middleware temporarily disabled for debugging
+// app.use("/api/trpc/*", async (c) => {
+//   return fetchRequestHandler({
+//     endpoint: "/api/trpc",
+//     req: c.req.raw,
+//     router: appRouter,
+//     createContext,
+//   });
+// });
 // Register the OAuth callback handler directly on the main app. Mounting
 // via app.route() was returning 404 in production (worked locally), so
 // we register the handler inline.
