@@ -12,6 +12,13 @@ import { Paths } from "@contracts/constants";
 const app = new Hono<{ Bindings: HttpBindings }>();
 
 app.use(bodyLimit({ maxSize: 50 * 1024 * 1024 }));
+app.get("/api/test/version", (c) => c.json({ 
+  version: "1.0",
+  buildTime: new Date().toISOString(),
+  oauthCallbackPath: "/api/assistant/integrations/callback",
+  env: process.env.NODE_ENV,
+  publicBaseUrl: process.env.PUBLIC_BASE_URL,
+}));
 app.get(Paths.oauthCallback, createOAuthCallbackHandler());
 app.route("/api/webhooks", webhooks);
 app.use("/api/trpc/*", async (c) => {
