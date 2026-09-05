@@ -9,7 +9,16 @@ type App = Hono<{ Bindings: HttpBindings }>;
 export function serveStaticFiles(app: App) {
   const distPath = path.resolve(import.meta.dirname, "../dist/public");
 
-  app.use("*", serveStatic({ root: "./dist/public" }));
+  // Serve static files ONLY for non-API paths. API paths need to fall through
+  // to the registered routes (e.g. /api/assistant/integrations/callback).
+  // Without this filter, the serveStatic middleware would catch /api/...
+  // requests, not find a file, and return 404 before the routes can match.
+  app.use("*", async (c, next) => {
+    if (c.req.path.startsWith("/api/")) {
+      return next();
+    }
+    return serveStatic({ root: "./dist/public" })(c, next);
+  });
 
   app.notFound((c) => {
     const accept = c.req.header("accept") ?? "";
