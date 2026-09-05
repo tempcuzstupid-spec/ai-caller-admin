@@ -36,6 +36,12 @@ app.get("/api/assistant/integrations/callback", (c) => {
   console.log("[OAuth] callback hit, provider=", c.req.query("provider"));
   return oauthCallbackHandler(c);
 });
+
+// Alternative: try a completely different path
+app.get("/api/oauth-assistant/callback", (c) => {
+  console.log("[OAuth] alt callback hit, provider=", c.req.query("provider"));
+  return oauthCallbackHandler(c);
+});
 app.all("/api/*", (c) => c.json({ error: "Not Found" }, 404));
 
 export default app;
