@@ -43,7 +43,7 @@ const providerSchema = z.enum([
 
 // The callback URL the user is redirected to. For mock, we just complete
 // the integration immediately and bounce them back to the assistant page.
-oauthCallbackRoutes.get("/api/assistant/integrations/callback", async (c) => {
+oauthCallbackRoutes.get("/integrations/callback", async (c) => {
   const provider = providerSchema.safeParse(c.req.query("provider"));
   const state = c.req.query("state");
   const mock = c.req.query("mock");
