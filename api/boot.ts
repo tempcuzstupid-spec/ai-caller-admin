@@ -32,7 +32,10 @@ app.use("/api/trpc/*", async (c) => {
 // Register the OAuth callback handler directly on the main app. Mounting
 // via app.route() was returning 404 in production (worked locally), so
 // we register the handler inline.
-app.get("/api/assistant/integrations/callback", oauthCallbackHandler);
+app.get("/api/assistant/integrations/callback", (c) => {
+  console.log("[OAuth] callback hit, provider=", c.req.query("provider"));
+  return oauthCallbackHandler(c);
+});
 app.all("/api/*", (c) => c.json({ error: "Not Found" }, 404));
 
 export default app;
