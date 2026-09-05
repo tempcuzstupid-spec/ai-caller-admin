@@ -12,38 +12,23 @@ import { Paths } from "@contracts/constants";
 const app = new Hono<{ Bindings: HttpBindings }>();
 
 app.use(bodyLimit({ maxSize: 50 * 1024 * 1024 }));
-app.get("/api/test/version", (c) => c.json({ 
-  version: "1.0",
-  buildTime: new Date().toISOString(),
-  oauthCallbackPath: "/api/assistant/integrations/callback",
-  env: process.env.NODE_ENV,
-  publicBaseUrl: process.env.PUBLIC_BASE_URL,
-}));
 app.get(Paths.oauthCallback, createOAuthCallbackHandler());
-// app.route("/api/webhooks", webhooks);
-// tRPC middleware temporarily disabled for debugging
-// app.use("/api/trpc/*", async (c) => {
-//   return fetchRequestHandler({
-//     endpoint: "/api/trpc",
-//     req: c.req.raw,
-//     router: appRouter,
-//     createContext,
-//   });
-// });
-// Register the OAuth callback handler directly on the main app. Mounting
-// via app.route() was returning 404 in production (worked locally), so
-// we register the handler inline.
-app.get("/api/assistant/integrations/callback", async (c) => {
-  console.log("[OAuth] callback hit, provider=", c.req.query("provider"));
-  return c.text("oauth callback reached! provider=" + c.req.query("provider"));
-});
-app.get("/api/oauth-assistant/callback", (c) => {
-  console.log("[OAuth] alt callback hit, provider=", c.req.query("provider"));
-  return c.text("alt callback reached! provider=" + c.req.query("provider"));
+app.route("/api/webhooks", webhooks);
+app.use("/api/trpc/*", async (c) => {
+  return fetchRequestHandler({
+    endpoint: "/api/trpc",
+    req: c.req.raw,
+    router: appRouter,
+    createContext,
+  });
 });
 
-// Test: simple handler at /api/oauth-test
-app.get("/api/oauth-test", (c) => c.text("oauth-test works"));
+// OAuth callback for assistant integrations. Mounted inline because Hono's
+// app.route() with sub-app mount was returning 404 in production (worked
+// locally). This is a known issue — the route registration order or the
+// sub-app mount has a quirk in production that we work around here.
+app.get("/api/assistant/integrations/callback", oauthCallbackHandler);
+app.all("/api/*", (c) => c.json({ error: "Not Found" }, 404));
 
 export default app;
 
