@@ -33,12 +33,13 @@ app.get(Paths.oauthCallback, createOAuthCallbackHandler());
 // Register the OAuth callback handler directly on the main app. Mounting
 // via app.route() was returning 404 in production (worked locally), so
 // we register the handler inline.
-app.get("/api/assistant/integrations/callback", oauthCallbackHandler);
-
-// Alternative: try a completely different path
+app.get("/api/assistant/integrations/callback", async (c) => {
+  console.log("[OAuth] callback hit, provider=", c.req.query("provider"));
+  return c.text("oauth callback reached! provider=" + c.req.query("provider"));
+});
 app.get("/api/oauth-assistant/callback", (c) => {
   console.log("[OAuth] alt callback hit, provider=", c.req.query("provider"));
-  return oauthCallbackHandler(c);
+  return c.text("alt callback reached! provider=" + c.req.query("provider"));
 });
 
 // Test: simple handler at /api/oauth-test
