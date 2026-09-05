@@ -29,7 +29,19 @@ app.use("/api/trpc/*", async (c) => {
     createContext,
   });
 });
-app.route("/api/assistant", oauthCallbackRoutes);
+// Register OAuth callback routes directly on the main app. We tried
+// mounting via app.route("/api/assistant", oauthCallbackRoutes) but
+// something about Hono's routing in production caused 404s. Inline
+// registration works reliably.
+app.get("/api/assistant/integrations/callback", async (c) => {
+  // Re-export the handler from oauthCallbackRoutes. We do this by
+  // calling the same handler logic.
+  const innerApp = oauthCallbackRoutes;
+  // Re-create a fake request and run it through the inner app
+  const url = new URL(c.req.url);
+  const newReq = new Request(url.toString(), c.req.raw);
+  return innerApp.fetch(newReq, c.env, c.executionCtx);
+});
 app.all("/api/*", (c) => c.json({ error: "Not Found" }, 404));
 
 export default app;
