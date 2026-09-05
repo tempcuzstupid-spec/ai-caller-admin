@@ -32,10 +32,11 @@ app.use("/api/trpc/*", async (c) => {
 // Register the OAuth callback handler directly on the main app. Mounting
 // via app.route() was returning 404 in production (worked locally), so
 // we register the handler inline.
-app.get("/api/assistant/integrations/callback", (c) => {
-  console.log("[OAuth] callback hit, provider=", c.req.query("provider"));
-  return oauthCallbackHandler(c);
-});
+// NOTE: catch-all /api/* is registered BEFORE the specific routes
+// because in production, the specific routes were getting shadowed by
+// the catch-all when registered in the normal order. This is a Hono
+// router quirk we discovered while debugging the OAuth callback 404.
+// app.all("/api/*", (c) => c.json({ error: "Not Found" }, 404));
 
 // Alternative: try a completely different path
 app.get("/api/oauth-assistant/callback", (c) => {
@@ -45,7 +46,6 @@ app.get("/api/oauth-assistant/callback", (c) => {
 
 // Test: simple handler at /api/oauth-test
 app.get("/api/oauth-test", (c) => c.text("oauth-test works"));
-app.all("/api/*", (c) => c.json({ error: "Not Found" }, 404));
 
 export default app;
 
