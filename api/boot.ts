@@ -20,7 +20,7 @@ app.get("/api/test/version", (c) => c.json({
   publicBaseUrl: process.env.PUBLIC_BASE_URL,
 }));
 app.get(Paths.oauthCallback, createOAuthCallbackHandler());
-app.route("/api/webhooks", webhooks);
+// app.route("/api/webhooks", webhooks);
 // tRPC middleware temporarily disabled for debugging
 // app.use("/api/trpc/*", async (c) => {
 //   return fetchRequestHandler({
