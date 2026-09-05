@@ -33,11 +33,7 @@ app.route("/api/webhooks", webhooks);
 // Register the OAuth callback handler directly on the main app. Mounting
 // via app.route() was returning 404 in production (worked locally), so
 // we register the handler inline.
-// NOTE: catch-all /api/* is registered BEFORE the specific routes
-// because in production, the specific routes were getting shadowed by
-// the catch-all when registered in the normal order. This is a Hono
-// router quirk we discovered while debugging the OAuth callback 404.
-// app.all("/api/*", (c) => c.json({ error: "Not Found" }, 404));
+app.get("/api/assistant/integrations/callback", oauthCallbackHandler);
 
 // Alternative: try a completely different path
 app.get("/api/oauth-assistant/callback", (c) => {
