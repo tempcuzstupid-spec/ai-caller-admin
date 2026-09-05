@@ -7,13 +7,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { UserPlus, Trash2 } from "lucide-react";
+import { UserPlus, Trash2, Brain } from "lucide-react";
+import { ContactMemoryPanel } from "@/components/assistant/ContactMemoryPanel";
 import { toast } from "sonner";
 
 export default function Contacts() {
   const utils = trpc.useUtils();
   const list = trpc.contacts.list.useQuery();
   const [form, setForm] = useState({ name: "", phone: "", email: "", tags: "" });
+  const [openContactId, setOpenContactId] = useState<number | null>(null);
 
   const upsert = trpc.contacts.upsert.useMutation({
     onSuccess: () => { utils.contacts.list.invalidate(); setForm({ name: "", phone: "", email: "", tags: "" }); toast.success("Contact saved"); },
@@ -52,21 +54,36 @@ export default function Contacts() {
           <CardContent>
             <div className="space-y-2">
               {list.data?.map((c) => (
-                <div key={c.id} className="flex items-center justify-between gap-3 border-b last:border-0 pb-2 text-sm">
-                  <div>
-                    <div className="font-medium">{c.name} {c.tags && <span className="text-xs text-muted-foreground">({c.tags})</span>}</div>
-                    <div className="font-mono text-muted-foreground">{c.phone} {c.email && `· ${c.email}`}</div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    {c.dnc && <Badge variant="destructive">DNC</Badge>}
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      Do not call
-                      <Switch checked={c.dnc} onCheckedChange={(v) => setDnc.mutate({ id: c.id, dnc: v })} />
+                <div key={c.id} className="border-b last:border-0 pb-2 text-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="font-medium">{c.name} {c.tags && <span className="text-xs text-muted-foreground">({c.tags})</span>}</div>
+                      <div className="font-mono text-muted-foreground">{c.phone} {c.email && `· ${c.email}`}</div>
                     </div>
-                    <Button size="sm" variant="ghost" onClick={() => remove.mutate({ id: c.id })}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <div className="flex items-center gap-3">
+                      {c.dnc && <Badge variant="destructive">DNC</Badge>}
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        Do not call
+                        <Switch checked={c.dnc} onCheckedChange={(v) => setDnc.mutate({ id: c.id, dnc: v })} />
+                      </div>
+                      <Button
+                        size="sm"
+                        variant={openContactId === c.id ? "default" : "ghost"}
+                        onClick={() => setOpenContactId(openContactId === c.id ? null : c.id)}
+                        title="View AI memory for this contact"
+                      >
+                        <Brain className="h-4 w-4" />
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => remove.mutate({ id: c.id })}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
+                  {openContactId === c.id && (
+                    <div className="mt-3">
+                      <ContactMemoryPanel contactId={c.id} contactName={c.name} />
+                    </div>
+                  )}
                 </div>
               ))}
               {list.data?.length === 0 && <p className="text-sm text-muted-foreground">No contacts yet.</p>}

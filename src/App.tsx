@@ -9,6 +9,7 @@ import Calls from "./pages/Calls"
 import Messages from "./pages/Messages"
 import Contacts from "./pages/Contacts"
 import Settings from "./pages/Settings"
+import Assistant from "./pages/Assistant"
 
 export default function App() {
   return (
@@ -22,6 +23,7 @@ export default function App() {
       <Route path="/calls" element={<Calls />} />
       <Route path="/messages" element={<Messages />} />
       <Route path="/contacts" element={<Contacts />} />
+      <Route path="/assistant" element={<Assistant />} />
       <Route path="/settings" element={<Settings />} />
       <Route path="*" element={<NotFound />} />
     </Routes>

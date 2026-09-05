@@ -14,6 +14,12 @@ import {
   contacts,
   messages,
   auditLog,
+  assistantIntegrations,
+  assistantCalendarEvents,
+  assistantEmailDrafts,
+  assistantCallTasks,
+  assistantReminders,
+  assistantContactNotes,
 } from "./schema";
 
 export const tenantsRelations = relations(tenants, ({ many, one }) => ({
@@ -25,6 +31,12 @@ export const tenantsRelations = relations(tenants, ({ many, one }) => ({
   contacts: many(contacts),
   messages: many(messages),
   auditLog: many(auditLog),
+  assistantIntegrations: many(assistantIntegrations),
+  assistantCalendarEvents: many(assistantCalendarEvents),
+  assistantEmailDrafts: many(assistantEmailDrafts),
+  assistantCallTasks: many(assistantCallTasks),
+  assistantReminders: many(assistantReminders),
+  assistantContactNotes: many(assistantContactNotes),
   owner: one(users, {
     fields: [tenants.ownerUserId],
     references: [users.id],
@@ -128,4 +140,119 @@ export const auditLogRelations = relations(auditLog, ({ one }) => ({
     fields: [auditLog.actorUserId],
     references: [users.id],
   }),
+}));
+
+
+// ── Assistant relations ───────────────────────────────────────────────
+export const assistantIntegrationsRelations = relations(assistantIntegrations, ({ one }) => ({
+  tenant: one(tenants, {
+    fields: [assistantIntegrations.tenantId],
+    references: [tenants.id],
+  }),
+}));
+
+export const assistantCalendarEventsRelations = relations(assistantCalendarEvents, ({ one }) => ({
+  tenant: one(tenants, {
+    fields: [assistantCalendarEvents.tenantId],
+    references: [tenants.id],
+  }),
+  contact: one(contacts, {
+    fields: [assistantCalendarEvents.contactId],
+    references: [contacts.id],
+  }),
+  call: one(calls, {
+    fields: [assistantCalendarEvents.callId],
+    references: [calls.id],
+  }),
+}));
+
+export const assistantEmailDraftsRelations = relations(assistantEmailDrafts, ({ one }) => ({
+  tenant: one(tenants, {
+    fields: [assistantEmailDrafts.tenantId],
+    references: [tenants.id],
+  }),
+  contact: one(contacts, {
+    fields: [assistantEmailDrafts.contactId],
+    references: [contacts.id],
+  }),
+  call: one(calls, {
+    fields: [assistantEmailDrafts.callId],
+    references: [calls.id],
+  }),
+}));
+
+export const assistantCallTasksRelations = relations(assistantCallTasks, ({ one }) => ({
+  tenant: one(tenants, {
+    fields: [assistantCallTasks.tenantId],
+    references: [tenants.id],
+  }),
+  contact: one(contacts, {
+    fields: [assistantCallTasks.contactId],
+    references: [contacts.id],
+  }),
+  call: one(calls, {
+    fields: [assistantCallTasks.callId],
+    references: [calls.id],
+  }),
+}));
+
+export const assistantRemindersRelations = relations(assistantReminders, ({ one }) => ({
+  tenant: one(tenants, {
+    fields: [assistantReminders.tenantId],
+    references: [tenants.id],
+  }),
+  contact: one(contacts, {
+    fields: [assistantReminders.contactId],
+    references: [contacts.id],
+  }),
+  call: one(calls, {
+    fields: [assistantReminders.callId],
+    references: [calls.id],
+  }),
+}));
+
+export const assistantContactNotesRelations = relations(assistantContactNotes, ({ one }) => ({
+  tenant: one(tenants, {
+    fields: [assistantContactNotes.tenantId],
+    references: [tenants.id],
+  }),
+  contact: one(contacts, {
+    fields: [assistantContactNotes.contactId],
+    references: [contacts.id],
+  }),
+  call: one(calls, {
+    fields: [assistantContactNotes.callId],
+    references: [calls.id],
+  }),
+}));
+
+// ── Add relations on the existing tables that link to assistant_* ─────
+export const contactsWithAssistantRelations = relations(contacts, ({ one, many }) => ({
+  tenant: one(tenants, {
+    fields: [contacts.tenantId],
+    references: [tenants.id],
+  }),
+  calendarEvents: many(assistantCalendarEvents),
+  emailDrafts: many(assistantEmailDrafts),
+  callTasks: many(assistantCallTasks),
+  reminders: many(assistantReminders),
+  notes: many(assistantContactNotes),
+}));
+
+export const callsWithAssistantRelations = relations(calls, ({ one, many }) => ({
+  tenant: one(tenants, {
+    fields: [calls.tenantId],
+    references: [tenants.id],
+  }),
+  agentConfig: one(agentConfigs, {
+    fields: [calls.agentConfigId],
+    references: [agentConfigs.id],
+  }),
+  transcripts: many(transcripts),
+  messages: many(messages),
+  calendarEvents: many(assistantCalendarEvents),
+  emailDrafts: many(assistantEmailDrafts),
+  callTasks: many(assistantCallTasks),
+  reminders: many(assistantReminders),
+  notes: many(assistantContactNotes),
 }));

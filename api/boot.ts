@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import type { HttpBindings } from "@hono/node-server";
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
-import { appRouter } from "./router";
+import { appRouter, oauthCallbackRoutes } from "./router";
 import { webhooks } from "./webhooks";
 import { createContext } from "./context";
 import { env } from "./lib/env";
@@ -22,6 +22,7 @@ app.use("/api/trpc/*", async (c) => {
     createContext,
   });
 });
+app.route("/", oauthCallbackRoutes);
 app.all("/api/*", (c) => c.json({ error: "Not Found" }, 404));
 
 export default app;

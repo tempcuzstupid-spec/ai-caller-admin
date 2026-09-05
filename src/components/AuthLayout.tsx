@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/sidebar";
 import { LOGIN_PATH } from "@/const";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { LayoutDashboard, LogOut, PanelLeft, Bot, PhoneCall, MessageSquare, Users, Settings } from "lucide-react";
+import { LayoutDashboard, LogOut, PanelLeft, Bot, PhoneCall, MessageSquare, Users, Settings, Sparkles } from "lucide-react";
 import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { AuthLayoutSkeleton } from "./AuthLayoutSkeleton";
@@ -34,6 +34,7 @@ const menuItems = [
   { icon: PhoneCall, label: "Calls", path: "/calls" },
   { icon: MessageSquare, label: "Messaging", path: "/messages" },
   { icon: Users, label: "Contacts", path: "/contacts" },
+  { icon: Sparkles, label: "Assistant", path: "/assistant" },
   { icon: Settings, label: "Settings", path: "/settings" },
 ];
 

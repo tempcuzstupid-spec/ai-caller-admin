@@ -64,6 +64,70 @@ export const auditActionEnum = pgEnum("audit_action", [
   "create", "read", "update", "delete", "login", "logout", "export", "phi_access", "config_change", "preview",
 ]);
 
+
+// ── Assistant enums ───────────────────────────────────────────────────
+
+// External service the tenant has connected for the AI assistant
+export const integrationProviderEnum = pgEnum("integration_provider", [
+  "google_calendar",  // Google Calendar via Google OAuth
+  "outlook_calendar", // Microsoft Outlook calendar
+  "google_gmail",     // Gmail for email triage
+  "microsoft_graph",  // Outlook + MS Graph
+]);
+export const integrationStatusEnum = pgEnum("integration_status", [
+  "disconnected", // not connected
+  "pending",      // OAuth flow started, awaiting callback
+  "connected",    // tokens valid, integration live
+  "expired",      // refresh token expired, need re-auth
+  "error",        // last operation failed, needs admin attention
+]);
+
+// Calendar events: who initiated + who attends
+export const calendarEventSourceEnum = pgEnum("calendar_event_source", [
+  "owner",         // owner booked it manually
+  "ai_assistant",  // AI booked it on the owner's behalf
+  "external",      // someone else booked it
+]);
+export const calendarEventStatusEnum = pgEnum("calendar_event_status", [
+  "scheduled",     // future
+  "completed",     // past, attended
+  "cancelled",     // cancelled
+  "rescheduled",   // moved to a new time (we keep the original row)
+  "no_show",       // past, didn't attend
+]);
+
+// Email drafts the AI composed on the owner's behalf (never auto-send)
+export const emailDraftStatusEnum = pgEnum("email_draft_status", [
+  "draft",        // AI wrote, owner hasn't reviewed
+  "approved",     // owner approved, ready to send
+  "sent",         // sent via provider
+  "rejected",     // owner rejected
+  "edited",       // owner edited then approved
+]);
+
+// AI-driven outbound call tasks (different from sales vertical's reactive calls)
+export const callTaskStatusEnum = pgEnum("call_task_status", [
+  "pending",      // queued, not yet placed
+  "scheduled",    // scheduled for a future time
+  "placed",       // call placed, in progress
+  "completed",    // call completed (any outcome)
+  "failed",       // bridge / dial failed
+  "cancelled",    // owner cancelled before placement
+]);
+
+// Reminders the AI set on the owner's behalf
+export const reminderChannelEnum = pgEnum("reminder_channel", [
+  "sms",          // text the owner
+  "call",         // place a call to the owner at the time
+  "email",        // email the owner
+]);
+export const reminderStatusEnum = pgEnum("reminder_status", [
+  "active",       // waiting to fire
+  "fired",        // delivered
+  "cancelled",    // owner cancelled
+  "failed",       // delivery failed
+]);
+
 // ── Tenants ────────────────────────────────────────────────────────────
 // One row per customer. The whole product pivots around tenant_id.
 
@@ -347,3 +411,139 @@ export const auditLog = pgTable("admin_audit_log", {
 ]);
 
 export type AuditLog = typeof auditLog.$inferSelect;
+
+// ══════════════════════════════════════════════════════════════════════
+// AI ASSISTANT — Owner-facing executive-assistant surface
+// ══════════════════════════════════════════════════════════════════════
+
+export const assistantIntegrations = pgTable("admin_assistant_integrations", {
+  id: serial("id").primaryKey(),
+  tenantId: bigint("tenant_id", { mode: "number" }).notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  provider: integrationProviderEnum("provider").notNull(),
+  status: integrationStatusEnum("status").default("disconnected").notNull(),
+  accessToken: text("access_token"),
+  refreshToken: text("refresh_token"),
+  tokenExpiresAt: timestamp("token_expires_at"),
+  externalUserId: varchar("external_user_id", { length: 255 }),
+  externalUserEmail: varchar("external_user_email", { length: 320 }),
+  lastSyncedAt: timestamp("last_synced_at"),
+  lastError: text("last_error"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
+}, (t) => [
+  index("assistant_integrations_tenant_idx").on(t.tenantId),
+  uniqueIndex("assistant_integrations_tenant_provider_idx").on(t.tenantId, t.provider),
+]);
+
+export type AssistantIntegration = typeof assistantIntegrations.$inferSelect;
+
+export const assistantCalendarEvents = pgTable("admin_assistant_calendar_events", {
+  id: serial("id").primaryKey(),
+  tenantId: bigint("tenant_id", { mode: "number" }).notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  source: calendarEventSourceEnum("source").notNull(),
+  contactId: bigint("contact_id", { mode: "number" }).references(() => contacts.id, { onDelete: "set null" }),
+  callId: bigint("call_id", { mode: "number" }).references(() => calls.id, { onDelete: "set null" }),
+  externalEventId: varchar("external_event_id", { length: 255 }),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description"),
+  attendees: text("attendees"),
+  startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+  endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+  timeZone: varchar("time_zone", { length: 64 }).default("America/New_York").notNull(),
+  meetingUrl: text("meeting_url"),
+  status: calendarEventStatusEnum("status").default("scheduled").notNull(),
+  notes: text("notes"),
+  phiClassification: phiClassificationEnum("phi_classification").default("pii").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
+}, (t) => [
+  index("assistant_calendar_tenant_starts_idx").on(t.tenantId, t.startsAt),
+  index("assistant_calendar_tenant_status_idx").on(t.tenantId, t.status),
+]);
+
+export type AssistantCalendarEvent = typeof assistantCalendarEvents.$inferSelect;
+
+export const assistantEmailDrafts = pgTable("admin_assistant_email_drafts", {
+  id: serial("id").primaryKey(),
+  tenantId: bigint("tenant_id", { mode: "number" }).notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  contactId: bigint("contact_id", { mode: "number" }).references(() => contacts.id, { onDelete: "set null" }),
+  callId: bigint("call_id", { mode: "number" }).references(() => calls.id, { onDelete: "set null" }),
+  toAddr: text("to_addr").notNull(),
+  ccAddr: text("cc_addr"),
+  bccAddr: text("bcc_addr"),
+  subject: varchar("subject", { length: 500 }).notNull(),
+  body: text("body").notNull(),
+  aiReasoning: text("ai_reasoning"),
+  status: emailDraftStatusEnum("status").default("draft").notNull(),
+  providerRef: varchar("provider_ref", { length: 255 }),
+  phiClassification: phiClassificationEnum("phi_classification").default("pii").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
+  sentAt: timestamp("sent_at"),
+}, (t) => [
+  index("assistant_drafts_tenant_status_idx").on(t.tenantId, t.status),
+  index("assistant_drafts_tenant_created_idx").on(t.tenantId, t.createdAt),
+]);
+
+export type AssistantEmailDraft = typeof assistantEmailDrafts.$inferSelect;
+
+export const assistantCallTasks = pgTable("admin_assistant_call_tasks", {
+  id: serial("id").primaryKey(),
+  tenantId: bigint("tenant_id", { mode: "number" }).notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  contactId: bigint("contact_id", { mode: "number" }).references(() => contacts.id, { onDelete: "set null" }),
+  toNumber: varchar("to_number", { length: 32 }).notNull(),
+  taskBrief: text("task_brief").notNull(),
+  scheduledFor: timestamp("scheduled_for", { withTimezone: true }),
+  status: callTaskStatusEnum("status").default("pending").notNull(),
+  callId: bigint("call_id", { mode: "number" }).references(() => calls.id, { onDelete: "set null" }),
+  outcome: varchar("outcome", { length: 64 }),
+  transcriptSummary: text("transcript_summary"),
+  phiClassification: phiClassificationEnum("phi_classification").default("pii").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
+}, (t) => [
+  index("assistant_call_tasks_tenant_status_idx").on(t.tenantId, t.status),
+  index("assistant_call_tasks_tenant_scheduled_idx").on(t.tenantId, t.scheduledFor),
+]);
+
+export type AssistantCallTask = typeof assistantCallTasks.$inferSelect;
+
+export const assistantReminders = pgTable("admin_assistant_reminders", {
+  id: serial("id").primaryKey(),
+  tenantId: bigint("tenant_id", { mode: "number" }).notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  contactId: bigint("contact_id", { mode: "number" }).references(() => contacts.id, { onDelete: "set null" }),
+  callId: bigint("call_id", { mode: "number" }).references(() => calls.id, { onDelete: "set null" }),
+  message: text("message").notNull(),
+  channel: reminderChannelEnum("channel").notNull(),
+  destination: varchar("destination", { length: 320 }).notNull(),
+  fireAt: timestamp("fire_at", { withTimezone: true }).notNull(),
+  status: reminderStatusEnum("status").default("active").notNull(),
+  firedAt: timestamp("fired_at"),
+  deliveryRef: varchar("delivery_ref", { length: 255 }),
+  deliveryError: text("delivery_error"),
+  phiClassification: phiClassificationEnum("phi_classification").default("pii").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
+}, (t) => [
+  index("assistant_reminders_tenant_status_fire_idx").on(t.tenantId, t.status, t.fireAt),
+]);
+
+export type AssistantReminder = typeof assistantReminders.$inferSelect;
+
+export const assistantContactNotes = pgTable("admin_assistant_contact_notes", {
+  id: serial("id").primaryKey(),
+  tenantId: bigint("tenant_id", { mode: "number" }).notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  contactId: bigint("contact_id", { mode: "number" }).notNull().references(() => contacts.id, { onDelete: "cascade" }),
+  note: text("note").notNull(),
+  category: varchar("category", { length: 32 }).default("general").notNull(),
+  source: varchar("source", { length: 32 }).default("manual").notNull(),
+  callId: bigint("call_id", { mode: "number" }).references(() => calls.id, { onDelete: "set null" }),
+  phiClassification: phiClassificationEnum("phi_classification").default("pii").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => [
+  index("assistant_contact_notes_tenant_contact_idx").on(t.tenantId, t.contactId),
+  index("assistant_contact_notes_tenant_category_idx").on(t.tenantId, t.category),
+]);
+
+export type AssistantContactNote = typeof assistantContactNotes.$inferSelect;
+
